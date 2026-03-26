@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2022 개정 내신 환산기</title>
+    <style>
+        :root { --primary: #4f46e5; --bg: #f8fafc; --border: #e2e8f0; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg); padding: 2rem 1rem; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 700px; margin: 0 auto; }
+        h1 { text-align: center; color: #1e293b; font-size: 1.5rem; margin-bottom: 2rem; }
+        
+        /* 테이블 스타일 레이아웃 */
+        .subject-grid { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .grid-header { display: flex; padding: 10px 0; border-bottom: 2px solid #edeff2; font-weight: 700; color: #64748b; font-size: 0.9rem; }
+        .row { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #f1f5f9; }
+        
+        .col-name { flex: 2; font-weight: 600; color: #334155; }
+        .col-input { flex: 3; display: flex; gap: 10px; align-items: center; justify-content: center; }
+        
+        .input-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .input-label { font-size: 0.75rem; color: #94a3b8; }
+        
+        input { width: 70px; padding: 10px; border: 2px solid var(--border); border-radius: 10px; text-align: center; font-size: 1rem; outline: none; transition: 0.2s; }
+        input:focus { border-color: var(--primary); background: #f5f3ff; }
+
+        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 10px; }
+        button:hover { background: #4338ca; }
+
+        /* 결과 창 */
+        .result-panel { background: #f1f5f9; padding: 1.5rem; border-radius: 16px; margin-top: 2rem; display: none; }
+        .score-row { display: flex; justify-content: space-around; }
+        .score-item { text-align: center; }
+        .label { font-size: 0.85rem; color: #64748b; margin-bottom: 5px; }
+        .val { font-size: 2rem; font-weight: 800; color: var(--primary); }
+        .unit { font-size: 1rem; color: #64748b; margin-left: 2px; }
+
+        @media (max-width: 480px) {
+            .row { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .col-input { width: 100%; justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>2022 개정 내신 환산기</h1>
+    
+    <div class="grid-header">
+        <div style="flex:2">과목 분류</div>
+        <div style="flex:3; text-align:center;">학기별 등급 입력 (1~5)</div>
+    </div>
+
+    <div id="formContainer"></div>
+
+    <button onclick="calculate()">환산 결과 보기</button>
+
+    <div id="resultPanel" class="result-panel">
+        <div class="score-row">
+            <div class="score-item">
+                <div class="label">5등급제 평균</div>
+                <div><span id="res5" class="val">-</span><span class="unit">등급</span></div>
+            </div>
+            <div class="score-item">
+                <div class="label">9등급제 환산</div>
+                <div><span id="res9" class="val">-</span><span class="unit">등급</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 과목 데이터 (과목명, [1학기학점, 2학기학점])
+    // 2022 개정 공통과목은 보통 학기당 4학점(국수영) 또는 3학점(사과)입니다.
+    const subjectData = [
+        { title: "공통국어", credits: [4, 4], names: ["공통국어1", "공통국어2"] },
+        { title: "공통수학", credits: [4, 4], names: ["공통수학1", "공통수학2"] },
+        { title: "공통영어", credits: [4, 4], names: ["공통영어1", "공통영어2"] },
+        { title: "한국사",   credits: [3, 3], names: ["한국사1", "한국사2"] },
+        { title: "통합사회", credits: [3, 3], names: ["통합사회1", "통합사회2"] },
+        { title: "통합과학", credits: [3, 3], names: ["통합과학1", "통합과학2"] }
+    ];
+
+    const container = document.getElementById('formContainer');
+
+    // 입력 폼 생성
+    subjectData.forEach((s, i) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+            <div class="col-name">${s.title} 1, 2</div>
+            <div class="col-input">
+                <div class="input-group">
+                    <span class="input-label">1학기</span>
+                    <input type="number" id="g_${i}_0" step="0.1" min="1" max="5" placeholder="등급">
+                </div>
+                <div class="input-group">
+                    <span class="input-label">2학기</span>
+                    <input type="number" id="g_${i}_1" step="0.1" min="1" max="5" placeholder="등급">
+                </div>
+            </div>
+        `;
+        container.appendChild(row);
+    });
+
+    // 9등급제 환산 기준 데이터 (선형 보간용)
+    const points = [
+        {x: 1.0, y: 1.38}, {x: 2.0, y: 3.44}, {x: 3.0, y: 5.08}, {x: 4.0, y: 6.69}, {x: 5.0, y: 9.00}
+    ];
+
+    function calculate() {
+        let weightedSum = 0;
+        let totalCredits = 0;
+
+        for(let i=0; i<subjectData.length; i++) {
+            for(let j=0; j<2; j++) {
+                const val = parseFloat(document.getElementById(`g_${i}_${j}`).value);
+                if(isNaN(val)) {
+                    alert('모든 과목의 등급을 입력해주세요!');
+                    return;
+                }
+                weightedSum += val * subjectData[i].credits[j];
+                totalCredits += subjectData[i].credits[j];
+            }
+        }
+
+        const avg5 = weightedSum / totalCredits;
+        
+        // 선형 보간 환산
+        let conv9 = 0;
+        for (let i = 0; i < points.length - 1; i++) {
+            if (avg5 >= points[i].x && avg5 <= points[i+1].x) {
+                const p1 = points[i], p2 = points[i+1];
+                conv9 = p1.y + (avg5 - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
+                break;
+            }
+        }
+
+        document.getElementById('res5').innerText = avg5.toFixed(2);
+        document.getElementById('res9').innerText = conv9.toFixed(2);
+        document.getElementById('resultPanel').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
