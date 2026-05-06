@@ -32,7 +32,6 @@
         .res-type { font-weight: 700; color: #334155; }
         .res-val { font-weight: 800; color: var(--primary); font-size: 1.1rem; }
         .res-conv { color: #6366f1; font-weight: 700; }
-        .note { font-size: 0.8rem; color: #94a3b8; text-align: center; margin-top: 15px; line-height: 1.5; }
 
         @media (max-width: 480px) {
             .row { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -51,10 +50,6 @@
     </div>
 
     <div id="formContainer"></div>
-    <div class="note">
-        * 수업이 없는 학기는 비워두세요. 자동으로 계산에서 제외됩니다.<br>
-        * 기술가정/한문은 두 과목 중 해당 학기에 수강한 등급을 입력하세요.
-    </div>
 
     <button onclick="calculate()">환산 결과 보기</button>
 
@@ -73,21 +68,20 @@
 </div>
 
 <script>
-    // 과목 데이터 및 요청하신 단위수(Credits) 반영
-    // 그룹 태그: K(국), E(영), M(수), S(사), C(과)
+    // 과목 데이터 및 단위수(Credits) + 분류 태그(Groups)
+    // K: 국어, E: 영어, M: 수학, S: 사회/한국사, C: 과학
     const subjectData = [
-        { title: "공통국어 1, 2", credits: [4, 3], groups: ['K','E','M','S','C'] },
-        { title: "공통수학 1, 2", credits: [4, 4], groups: ['K','E','M','S','C'] },
-        { title: "공통영어 1, 2", credits: [3, 4], groups: ['K','E','M','S','C'] },
-        { title: "한국사 1, 2",   credits: [3, 3], groups: ['K','E','M','S'] },
-        { title: "통합사회 1, 2", credits: [4, 4], groups: ['K','E','M','S'] },
-        { title: "통합과학 1, 2", credits: [4, 4], groups: ['K','E','M','C'] },
-        { title: "기술가정 / 한문", credits: [3, 3], groups: [] } // 전과목에만 포함
+        { title: "공통국어 1, 2", credits: [4, 3], groups: ['K'] },
+        { title: "공통수학 1, 2", credits: [4, 4], groups: ['M'] },
+        { title: "공통영어 1, 2", credits: [3, 4], groups: ['E'] },
+        { title: "한국사 1, 2",   credits: [3, 3], groups: ['S'] },
+        { title: "통합사회 1, 2", credits: [4, 4], groups: ['S'] },
+        { title: "통합과학 1, 2", credits: [4, 4], groups: ['C'] },
+        { title: "기술가정 / 한문", credits: [3, 3], groups: ['기타'] } 
     ];
 
     const container = document.getElementById('formContainer');
 
-    // 입력 폼 자동 생성
     subjectData.forEach((s, i) => {
         const row = document.createElement('div');
         row.className = 'row';
@@ -107,7 +101,6 @@
         container.appendChild(row);
     });
 
-    // 9등급제 환산용 선형 보간 데이터
     const points = [
         {x: 1.0, y: 1.38}, {x: 2.0, y: 3.44}, {x: 3.0, y: 5.08}, {x: 4.0, y: 6.69}, {x: 5.0, y: 9.00}
     ];
@@ -115,7 +108,6 @@
     function getConv9(avg5) {
         const val = parseFloat(avg5);
         if (isNaN(val) || val === 0) return "-";
-        
         for (let i = 0; i < points.length - 1; i++) {
             if (val >= points[i].x && val <= points[i+1].x) {
                 const p1 = points[i], p2 = points[i+1];
@@ -126,8 +118,9 @@
     }
 
     function calculate() {
+        // 정의된 분류 기준
         const targets = [
-            { label: "전과목", filter: null },
+            { label: "전과목", filter: ['K','E','M','S','C','기타'] },
             { label: "국영수사과", filter: ['K','E','M','S','C'] },
             { label: "국영수사", filter: ['K','E','M','S'] },
             { label: "국영수과", filter: ['K','E','M','C'] }
@@ -141,13 +134,13 @@
             let totalCredits = 0;
 
             subjectData.forEach((s, i) => {
-                // 필터가 없으면 전과목, 있으면 해당 그룹 포함 과목만 계산
-                const isTarget = !target.filter || s.groups.some(g => target.filter.includes(g));
+                // 현재 과목의 그룹 태그가 타겟 필터에 포함되는지 확인
+                const isTarget = s.groups.some(g => target.filter.includes(g));
                 
                 if (isTarget) {
                     for(let j=0; j<2; j++) {
                         const inputVal = document.getElementById(`g_${i}_${j}`).value;
-                        if(inputVal !== "") { // 공란이 아닐 때만 포함 (집중이수제 대응)
+                        if(inputVal !== "") {
                             const grade = parseFloat(inputVal);
                             weightedSum += grade * s.credits[j];
                             totalCredits += s.credits[j];
