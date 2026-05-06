@@ -10,8 +10,6 @@
         .container { background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 700px; margin: 0 auto; }
         h1 { text-align: center; color: #1e293b; font-size: 1.5rem; margin-bottom: 2rem; }
         
-        /* 테이블 스타일 레이아웃 */
-        .subject-grid { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
         .grid-header { display: flex; padding: 10px 0; border-bottom: 2px solid #edeff2; font-weight: 700; color: #64748b; font-size: 0.9rem; }
         .row { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #f1f5f9; }
         
@@ -24,16 +22,17 @@
         input { width: 70px; padding: 10px; border: 2px solid var(--border); border-radius: 10px; text-align: center; font-size: 1rem; outline: none; transition: 0.2s; }
         input:focus { border-color: var(--primary); background: #f5f3ff; }
 
-        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 10px; }
+        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 20px; }
         button:hover { background: #4338ca; }
 
-        /* 결과 창 */
         .result-panel { background: #f1f5f9; padding: 1.5rem; border-radius: 16px; margin-top: 2rem; display: none; }
-        .score-row { display: flex; justify-content: space-around; }
-        .score-item { text-align: center; }
-        .label { font-size: 0.85rem; color: #64748b; margin-bottom: 5px; }
-        .val { font-size: 2rem; font-weight: 800; color: var(--primary); }
-        .unit { font-size: 1rem; color: #64748b; margin-left: 2px; }
+        .result-table { width: 100%; border-collapse: collapse; }
+        .result-table th { text-align: left; padding: 10px; color: #64748b; font-size: 0.85rem; }
+        .result-table td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
+        .res-type { font-weight: 700; color: #334155; }
+        .res-val { font-weight: 800; color: var(--primary); font-size: 1.1rem; }
+        .res-conv { color: #6366f1; font-weight: 700; }
+        .note { font-size: 0.8rem; color: #94a3b8; text-align: center; margin-top: 15px; line-height: 1.5; }
 
         @media (max-width: 480px) {
             .row { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -52,93 +51,125 @@
     </div>
 
     <div id="formContainer"></div>
+    <div class="note">
+        * 수업이 없는 학기는 비워두세요. 자동으로 계산에서 제외됩니다.<br>
+        * 기술가정/한문은 두 과목 중 해당 학기에 수강한 등급을 입력하세요.
+    </div>
 
     <button onclick="calculate()">환산 결과 보기</button>
 
     <div id="resultPanel" class="result-panel">
-        <div class="score-row">
-            <div class="score-item">
-                <div class="label">5등급제 평균</div>
-                <div><span id="res5" class="val">-</span><span class="unit">등급</span></div>
-            </div>
-            <div class="score-item">
-                <div class="label">9등급제 환산</div>
-                <div><span id="res9" class="val">-</span><span class="unit">등급</span></div>
-            </div>
-        </div>
+        <table class="result-table">
+            <thead>
+                <tr>
+                    <th>구분</th>
+                    <th>5등급제 평균</th>
+                    <th>9등급제 환산</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
     </div>
 </div>
 
 <script>
-    // 과목 데이터 (과목명, [1학기학점, 2학기학점])
-    // 2022 개정 공통과목은 보통 학기당 4학점(국수영) 또는 3학점(사과)입니다.
+    // 과목 데이터 및 요청하신 단위수(Credits) 반영
+    // 그룹 태그: K(국), E(영), M(수), S(사), C(과)
     const subjectData = [
-        { title: "공통국어", credits: [4, 4], names: ["공통국어1", "공통국어2"] },
-        { title: "공통수학", credits: [4, 4], names: ["공통수학1", "공통수학2"] },
-        { title: "공통영어", credits: [4, 4], names: ["공통영어1", "공통영어2"] },
-        { title: "한국사",   credits: [3, 3], names: ["한국사1", "한국사2"] },
-        { title: "통합사회", credits: [3, 3], names: ["통합사회1", "통합사회2"] },
-        { title: "통합과학", credits: [3, 3], names: ["통합과학1", "통합과학2"] }
+        { title: "공통국어 1, 2", credits: [4, 3], groups: ['K','E','M','S','C'] },
+        { title: "공통수학 1, 2", credits: [4, 4], groups: ['K','E','M','S','C'] },
+        { title: "공통영어 1, 2", credits: [3, 4], groups: ['K','E','M','S','C'] },
+        { title: "한국사 1, 2",   credits: [3, 3], groups: ['K','E','M','S'] },
+        { title: "통합사회 1, 2", credits: [4, 4], groups: ['K','E','M','S'] },
+        { title: "통합과학 1, 2", credits: [4, 4], groups: ['K','E','M','C'] },
+        { title: "기술가정 / 한문", credits: [3, 3], groups: [] } // 전과목에만 포함
     ];
 
     const container = document.getElementById('formContainer');
 
-    // 입력 폼 생성
+    // 입력 폼 자동 생성
     subjectData.forEach((s, i) => {
         const row = document.createElement('div');
         row.className = 'row';
         row.innerHTML = `
-            <div class="col-name">${s.title} 1, 2</div>
+            <div class="col-name">${s.title}</div>
             <div class="col-input">
                 <div class="input-group">
                     <span class="input-label">1학기</span>
-                    <input type="number" id="g_${i}_0" step="0.1" min="1" max="5" placeholder="등급">
+                    <input type="number" id="g_${i}_0" min="1" max="5" step="1" placeholder="-">
                 </div>
                 <div class="input-group">
                     <span class="input-label">2학기</span>
-                    <input type="number" id="g_${i}_1" step="0.1" min="1" max="5" placeholder="등급">
+                    <input type="number" id="g_${i}_1" min="1" max="5" step="1" placeholder="-">
                 </div>
             </div>
         `;
         container.appendChild(row);
     });
 
-    // 9등급제 환산 기준 데이터 (선형 보간용)
+    // 9등급제 환산용 선형 보간 데이터
     const points = [
         {x: 1.0, y: 1.38}, {x: 2.0, y: 3.44}, {x: 3.0, y: 5.08}, {x: 4.0, y: 6.69}, {x: 5.0, y: 9.00}
     ];
 
-    function calculate() {
-        let weightedSum = 0;
-        let totalCredits = 0;
-
-        for(let i=0; i<subjectData.length; i++) {
-            for(let j=0; j<2; j++) {
-                const val = parseFloat(document.getElementById(`g_${i}_${j}`).value);
-                if(isNaN(val)) {
-                    alert('모든 과목의 등급을 입력해주세요!');
-                    return;
-                }
-                weightedSum += val * subjectData[i].credits[j];
-                totalCredits += subjectData[i].credits[j];
-            }
-        }
-
-        const avg5 = weightedSum / totalCredits;
+    function getConv9(avg5) {
+        const val = parseFloat(avg5);
+        if (isNaN(val) || val === 0) return "-";
         
-        // 선형 보간 환산
-        let conv9 = 0;
         for (let i = 0; i < points.length - 1; i++) {
-            if (avg5 >= points[i].x && avg5 <= points[i+1].x) {
+            if (val >= points[i].x && val <= points[i+1].x) {
                 const p1 = points[i], p2 = points[i+1];
-                conv9 = p1.y + (avg5 - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
-                break;
+                return (p1.y + (val - p1.x) * (p2.y - p1.y) / (p2.x - p1.x)).toFixed(2);
             }
         }
+        return val > 5 ? "9.00" : "1.38";
+    }
 
-        document.getElementById('res5').innerText = avg5.toFixed(2);
-        document.getElementById('res9').innerText = conv9.toFixed(2);
+    function calculate() {
+        const targets = [
+            { label: "전과목", filter: null },
+            { label: "국영수사과", filter: ['K','E','M','S','C'] },
+            { label: "국영수사", filter: ['K','E','M','S'] },
+            { label: "국영수과", filter: ['K','E','M','C'] }
+        ];
+
+        const resultBody = document.getElementById('resultBody');
+        resultBody.innerHTML = '';
+
+        targets.forEach(target => {
+            let weightedSum = 0;
+            let totalCredits = 0;
+
+            subjectData.forEach((s, i) => {
+                // 필터가 없으면 전과목, 있으면 해당 그룹 포함 과목만 계산
+                const isTarget = !target.filter || s.groups.some(g => target.filter.includes(g));
+                
+                if (isTarget) {
+                    for(let j=0; j<2; j++) {
+                        const inputVal = document.getElementById(`g_${i}_${j}`).value;
+                        if(inputVal !== "") { // 공란이 아닐 때만 포함 (집중이수제 대응)
+                            const grade = parseFloat(inputVal);
+                            weightedSum += grade * s.credits[j];
+                            totalCredits += s.credits[j];
+                        }
+                    }
+                }
+            });
+
+            const avg5 = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : "0.00";
+            const conv9 = getConv9(avg5);
+
+            resultBody.innerHTML += `
+                <tr>
+                    <td class="res-type">${target.label}</td>
+                    <td class="res-val">${avg5} <small>등급</small></td>
+                    <td class="res-conv">${conv9} <small>등급</small></td>
+                </tr>
+            `;
+        });
+
         document.getElementById('resultPanel').style.display = 'block';
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
 </script>
 
